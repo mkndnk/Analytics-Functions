@@ -1,0 +1,6 @@
+#Excel Useful Functions
+
+###Format as K, M & B in Excel 
+=[<999950]0.0,"K";[<999950000]0.0,,"M";0.0,,,"B"
+###Convert K, M & B to Numbers
+=IF(ISTEXT(A2),10^(LOOKUP(RIGHT(A2),{"B","K","M"}, {9,3,6}))*LEFT(A2,LEN(A2)-1),A2)
