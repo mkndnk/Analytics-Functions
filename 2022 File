@@ -4,3 +4,84 @@
 =[<999950]0.0,"K";[<999950000]0.0,,"M";0.0,,,"B"
 ###Convert K, M & B to Numbers
 =IF(ISTEXT(A2),10^(LOOKUP(RIGHT(A2),{"B","K","M"}, {9,3,6}))*LEFT(A2,LEN(A2)-1),A2)
+
+#Most visited three page event sequence to find the common path of particular customer segment
+
+create table sequenced_table as SELECT a.*, row_number() OVER (PARTITION BY sessn_id seq_numER BY evnt_ts) AS seq_num FROM table;
+
+create table event_sequence_mapped as
+SELECT upper(t.event) AS event_1, upper(t2.event) AS event_2, upper(t3.event) AS event_3, sessn_id 
+FROM sequenced_table AS t 
+INNER JOIN sequenced_table AS t2 ON t.workitem_seg_id = t2.workitem_seg_id AND t2.seq_num = t.seq_num + 1 
+INNER JOIN sequenced_table AS t3 ON t2.workitem_seg_id = t3.workitem_seg_id AND t3.seq_num = t2.seq_num + 1 AND t3.seq_num = t.seq_num + 2;
+
+
+create table top_three_page_sequence as
+select top 3 event_1 + '->' + event_2 + '->' + event_3 as three_page_sequence,count(distinct sessn_id) as session 
+from event_sequence_mapped group by 1 order by 2 desc
+
+#Useful Window/Ordered Analytical Function
+
+analytic_function_name([argument_list])
+OVER (
+[PARTITION BY partition_expression,…]
+[ORDER BY sort_expression, … [ASC|DESC]]
+ROWS BETWEEN n PRECEDING AND n FOLLOWING)
+
+analytic_function_name - MIN, MAX, SUM, COUNT, AVG, NTILE, FIRST_VALUE, LAST_VALUE, LEAD, LAG, DENSE_RANK, 
+
+COUNT(*) OVER(PARTITION BY col_name) * 100.0 /COUNT(*) OVER() AS percentage_total
+
+LEAD(KPI, 1) OVER (ORDER BY time_interval) next_interval_kpi,
+1.0 *LEAD(KPI,1) OVER (ORDER BY time_interval)/KPI AS interval_over_interval_change
+
+#ALERT USING SQL
+
+WITH calculations_over_window AS (
+   SELECT
+       category,
+       period,
+       kpi,
+       AVG(kpi) OVER status_window as mean_kpi,
+       STDDEV(kpi) OVER status_window as stddev_kpi
+   FROM
+       server_log_summary
+   WINDOW status_window AS (
+       PARTITION BY category
+       ORDER BY period
+       ROWS BETWEEN n PRECEDING AND CURRENT ROW
+   )
+),
+
+with_zscore AS (
+   SELECT
+       *,
+       (mean_kpi - stddev_kpi) / NULLIF(stddev_kpi::float, 0) as zscore
+   FROM
+       calculations_over_window
+),
+
+with_alert AS (
+
+   SELECT
+       *,
+       entries > n AND zscore > 1.5 AS alert
+   FROM
+       with_zscore
+)
+
+SELECT
+   category,
+   period,
+   entries,
+   zscore,
+   alert
+FROM
+   with_alert
+WHERE
+   alert
+ORDER BY
+   period DESC;
+   
+   #Division by zero error
+   kpi1/nullif(kpi2,0)
